@@ -70,15 +70,30 @@ Your task is to modify `template/model_development_template.py` to integrate Pol
 ### Repository Workflow
 ```
 .
-├── template/
+├── template/                        # DIRECTORY TO FORK
 │   ├── model_development_template.py # INTEGRATE POLYMARKET SIGNALS HERE
 │   ├── backtest_template.py         # Evaluate your new strategy
 │   └── prelude_template.py          # Data loading utilities
+├── example_1/                       # REFERENCE IMPLEMENTATION
+│   ├── model_development_example_1.py# Example Polymarket integration
+│   ├── backtest_example_1.py        # Example backtest
+│   └── ...                          # See folder for full contents
 ├── data/                            # Bitcoin & Polymarket source data
 ├── docs/                            # Deep-dive documentation on MVRV logic
 ├── output/                          # Your strategy's performance visualizations
 └── tests/                           # Ensure your model remains stable
 ```
+
+---
+
+## 💡 Example Implementation: `example_1`
+
+To help you get started, we've provided `example_1/`. This is a complete "fork" of the `template/` directory that demonstrates:
+1. **Data Loading**: How to use `prelude_example_1.py` to ingest Polymarket parquet files.
+2. **Signal Generation**: A concrete example of mapping Polymarket odds to model modifiers.
+3. **Backtesting**: Running the evaluation suite on the integrated model.
+
+**Study `example_1/` to understand the workflow before building your own model in a new folder.**
 
 ---
 
