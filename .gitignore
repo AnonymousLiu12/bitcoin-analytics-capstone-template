@@ -28,6 +28,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+data/data/Untitled.ipynb
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -53,6 +54,8 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+*.ipynb
+*.md
 
 # Translations
 *.mo
