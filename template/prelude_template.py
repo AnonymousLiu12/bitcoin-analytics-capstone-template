@@ -21,8 +21,9 @@ logging.basicConfig(
 )
 
 # Configuration
-BACKTEST_START = "2018-01-01"
-BACKTEST_END = None  # Will use latest available date from data
+# Align default backtest range with local BTCUSDT dataset availability.
+BACKTEST_START = "2020-01-01"
+BACKTEST_END = "2026-01-31"
 INVESTMENT_WINDOW = 12  # months (deprecated: use WINDOW_OFFSET for consistency)
 PURCHASE_FREQ = "Daily"  # Daily frequency for DCA purchases
 # Standard 1-year window used across all modules
