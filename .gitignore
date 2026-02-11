@@ -216,6 +216,7 @@ tmp_capstone_data/
 
 *.parquet
 *.csv
+!BTCUSDT_1d_2020_to_now.csv
 *.png  
 *.jpg
 *.jpeg
