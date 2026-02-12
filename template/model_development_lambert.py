@@ -6,6 +6,7 @@ Keep function signatures unchanged so backtest_template can call it directly.
 
 import numpy as np
 import pandas as pd
+from pathlib import Path
 
 # =============================================================================
 # Constants
@@ -13,11 +14,41 @@ import pandas as pd
 
 PRICE_COL = "PriceUSD_coinmetrics"
 MIN_W = 1e-6
+STABLE_START_DATE = "2020-01-01"
 
 # TODO: Replace with your own feature names
 FEATS = [
     "feature_signal",
 ]
+
+
+def _load_stablecoins_series(target_index: pd.Index) -> pd.Series:
+    """Load stablecoins market cap and align to BTC date index."""
+    base_dir = Path(__file__).parent.parent
+    csv_path = base_dir / "stablecoins.csv"
+    if not csv_path.exists():
+        csv_path = Path("stablecoins.csv")
+    if not csv_path.exists():
+        raise FileNotFoundError(
+            f"stablecoins.csv not found at {csv_path}. "
+            "Place stablecoins.csv at project root."
+        )
+
+    stable_df = pd.read_csv(csv_path)
+    required_cols = {"date", "stable_mcap"}
+    if not required_cols.issubset(stable_df.columns):
+        raise ValueError(
+            f"stablecoins.csv must contain columns {required_cols}, got {set(stable_df.columns)}"
+        )
+
+    stable_df["date"] = pd.to_datetime(stable_df["date"])
+    stable_df = stable_df.set_index("date").sort_index()
+    stable_df.index = stable_df.index.normalize().tz_localize(None)
+    stable_df = stable_df.loc[stable_df.index >= pd.to_datetime(STABLE_START_DATE)]
+
+    stable = pd.to_numeric(stable_df["stable_mcap"], errors="coerce")
+    stable = stable.reindex(target_index).ffill().bfill()
+    return stable
 
 
 # =============================================================================
@@ -38,13 +69,17 @@ def precompute_features(df: pd.DataFrame) -> pd.DataFrame:
 
     price = df[PRICE_COL].copy()
 
-    # TODO: Replace this placeholder with your own feature logic.
-    # Placeholder feature: 1-day return, lagged to avoid look-ahead.
-    feature_signal = price.pct_change().replace([np.inf, -np.inf], 0).fillna(0)
+    stable_mcap = _load_stablecoins_series(price.index)
+
+    # Placeholder signal from stablecoin market-cap daily growth.
+    feature_signal = (
+        stable_mcap.pct_change().replace([np.inf, -np.inf], 0).fillna(0)
+    )
 
     features = pd.DataFrame(
         {
             PRICE_COL: price,
+            "stable_mcap": stable_mcap,
             "feature_signal": feature_signal.shift(1).fillna(0),
         },
         index=price.index,
