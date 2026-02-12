@@ -67,7 +67,9 @@ def compute_weights_modal(df_window: pd.DataFrame) -> pd.Series:
 
 
 def create_performance_comparison_chart(
-    df_spd: pd.DataFrame, output_dir: str = "output"
+    df_spd: pd.DataFrame,
+    output_dir: str = "output",
+    strategy_label: str = "Dynamic DCA",
 ):
     """Create line chart comparing dynamic vs uniform percentile over time."""
     os.makedirs(output_dir, exist_ok=True)
@@ -82,7 +84,7 @@ def create_performance_comparison_chart(
     plot_df = pd.DataFrame(
         {
             "Date": df_sorted["_date"],
-            "Dynamic DCA": df_sorted["dynamic_percentile"],
+            strategy_label: df_sorted["dynamic_percentile"],
             "Uniform DCA": df_sorted["uniform_percentile"],
         }
     )
@@ -105,7 +107,9 @@ def create_performance_comparison_chart(
     ax.set_xlabel("Window Start Date", fontsize=12)
     ax.set_ylabel("SPD Percentile (%)", fontsize=12)
     ax.set_title(
-        "Performance Comparison: Dynamic vs Uniform DCA", fontsize=14, fontweight="bold"
+        f"Performance Comparison: {strategy_label} vs Uniform DCA",
+        fontsize=14,
+        fontweight="bold",
     )
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
     ax.xaxis.set_major_locator(mdates.YearLocator())
@@ -463,7 +467,11 @@ def run_full_analysis(
     )
 
     logging.info("Generating visualizations...")
-    create_performance_comparison_chart(df_spd, output_dir)
+    create_performance_comparison_chart(
+        df_spd,
+        output_dir,
+        strategy_label=strategy_label,
+    )
     create_excess_percentile_distribution(df_spd, output_dir)
     create_win_loss_comparison(df_spd, output_dir)
     create_cumulative_performance(df_spd, output_dir)

@@ -16,9 +16,9 @@ PRICE_COL = "PriceUSD_coinmetrics"
 MIN_W = 1e-6
 STABLE_START_DATE = "2020-01-01"
 
-# TODO: Replace with your own feature names
 FEATS = [
-    "feature_signal",
+    "stable_roc_30",
+    "price_z_90",
 ]
 
 
@@ -71,16 +71,25 @@ def precompute_features(df: pd.DataFrame) -> pd.DataFrame:
 
     stable_mcap = _load_stablecoins_series(price.index)
 
-    # Placeholder signal from stablecoin market-cap daily growth.
-    feature_signal = (
-        stable_mcap.pct_change().replace([np.inf, -np.inf], 0).fillna(0)
-    )
+    # 1) Stablecoin fuel gauge: 30-day Rate of Change.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        stable_roc_30 = (stable_mcap / stable_mcap.shift(30)) - 1.0
+    stable_roc_30 = stable_roc_30.replace([np.inf, -np.inf], np.nan).fillna(0.0)
+
+    # 2) Price level gauge: 90-day Z-score.
+    price_ma_90 = price.rolling(window=90, min_periods=30).mean()
+    price_std_90 = price.rolling(window=90, min_periods=30).std()
+    with np.errstate(divide="ignore", invalid="ignore"):
+        price_z_90 = (price - price_ma_90) / price_std_90
+    price_z_90 = price_z_90.replace([np.inf, -np.inf], np.nan).fillna(0.0)
 
     features = pd.DataFrame(
         {
             PRICE_COL: price,
             "stable_mcap": stable_mcap,
-            "feature_signal": feature_signal.shift(1).fillna(0),
+            # Lag both predictive features by one day to prevent look-ahead bias.
+            "stable_roc_30": stable_roc_30.shift(1).fillna(0.0),
+            "price_z_90": price_z_90.shift(1).fillna(0.0),
         },
         index=price.index,
     )
@@ -92,17 +101,41 @@ def precompute_features(df: pd.DataFrame) -> pd.DataFrame:
 # =============================================================================
 
 
-def compute_dynamic_multiplier(feature_signal: np.ndarray) -> np.ndarray:
-    """Map feature values to positive multipliers.
+def compute_dynamic_multiplier(
+    stable_roc_30: np.ndarray, price_z_90: np.ndarray
+) -> np.ndarray:
+    """Rule-based multiplier using stablecoin ROC and price Z-score.
 
-    Multiplier > 1 means buy more on that day.
-    Multiplier < 1 means buy less on that day.
+    Rules (tuned):
+    - A+ extreme dip buy: stable > -2% and z < -1.6 -> 3.0x
+    - A normal accumulation: stable > 0% and z < -1.1 -> 1.7x
+    - B healthy uptrend: stable > 0% and z >= -1.1 -> 1.0x
+    - C weak rally: stable < 0% and z > 1.0 -> 0.8x
+    - D death spiral defense: stable < -3% and z < 0 -> 0.4x
+    - Else fallback -> 1.0x
     """
-    # TODO: Replace mapping with your strategy.
-    # Current placeholder uses a mild exponential mapping.
-    score = np.clip(feature_signal, -1, 1)
-    multiplier = np.exp(score)
-    return np.where(np.isfinite(multiplier), multiplier, 1.0)
+    n = min(len(stable_roc_30), len(price_z_90))
+    if n == 0:
+        return np.array([])
+
+    roc = stable_roc_30[:n]
+    z = price_z_90[:n]
+    mult = np.ones(n, dtype=float)
+
+    mask_a_plus = (roc > -0.02) & (z < -1.6)
+    mask_a = (roc > 0.0) & (z < -1.1)
+    mask_b = (roc > 0.0) & (z >= -1.1)
+    mask_c = (roc < 0.0) & (z > 1.0)
+    mask_d = (roc < -0.03) & (z < 0.0)
+
+    # Apply in priority order.
+    mult[mask_b] = 1.0
+    mult[mask_c] = 0.8
+    mult[mask_d] = 0.4
+    mult[mask_a] = 1.7
+    mult[mask_a_plus] = 3.0
+
+    return np.where(np.isfinite(mult), mult, 1.0)
 
 
 def _clean_array(arr: np.ndarray) -> np.ndarray:
@@ -136,8 +169,9 @@ def compute_weights_fast(
 
     n = len(df)
     base = np.ones(n) / n
-    signal = _clean_array(df["feature_signal"].values)
-    multiplier = compute_dynamic_multiplier(signal)
+    stable_roc_30 = _clean_array(df["stable_roc_30"].values)
+    price_z_90 = _clean_array(df["price_z_90"].values)
+    multiplier = compute_dynamic_multiplier(stable_roc_30, price_z_90)
 
     raw = base * multiplier
     raw = np.where(np.isfinite(raw), raw, 0.0)
