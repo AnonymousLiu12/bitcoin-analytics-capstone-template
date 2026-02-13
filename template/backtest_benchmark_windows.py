@@ -5,14 +5,14 @@ import pandas as pd
 
 try:
     from template.backtest_template import run_full_analysis
-    from template.model_development_lambert import (
+    from template.model_development_template import (
         compute_window_weights,
         precompute_features,
     )
     from template.prelude_template import load_data
 except ImportError:
     from backtest_template import run_full_analysis
-    from model_development_lambert import compute_window_weights, precompute_features
+    from model_development_template import compute_window_weights, precompute_features
     from prelude_template import load_data
 
 # Global variable to store precomputed features
@@ -21,7 +21,7 @@ WINDOW_MONTHS = [6, 9, 12, 15, 18]
 
 
 def compute_weights_modal(df_window: pd.DataFrame) -> pd.Series:
-    """Wrapper using Lambert strategy compute_window_weights for backtest."""
+    """Wrapper using baseline 200MA strategy compute_window_weights."""
     global _FEATURES_DF
 
     if _FEATURES_DF is None:
@@ -40,24 +40,24 @@ def compute_weights_modal(df_window: pd.DataFrame) -> pd.Series:
 def main():
     global _FEATURES_DF
 
-    logging.info("Starting Lambert Strategy Analysis")
+    logging.info("Starting Benchmark (200MA) Multi-Window Analysis")
     btc_df = load_data()
 
-    logging.info("Precomputing Lambert features...")
+    logging.info("Precomputing benchmark (200MA) features...")
     _FEATURES_DF = precompute_features(btc_df)
 
     base_dir = Path(__file__).parent.parent
-    output_root = base_dir / "output_lambert"
+    output_root = base_dir / "output_benchmark"
 
     for months in WINDOW_MONTHS:
         output_dir = output_root / f"window_{months}m"
-        logging.info(f"Running Stablecoins backtest with {months}-month window...")
+        logging.info(f"Running benchmark backtest with {months}-month window...")
         run_full_analysis(
             btc_df=btc_df,
             features_df=_FEATURES_DF,
             compute_weights_fn=compute_weights_modal,
             output_dir=output_dir,
-            strategy_label=f"Stablecoins ({months}M)",
+            strategy_label=f"Benchmark 200MA ({months}M)",
             window_offset=pd.DateOffset(months=months),
         )
 

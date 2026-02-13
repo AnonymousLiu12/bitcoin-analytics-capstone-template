@@ -227,6 +227,7 @@ def compute_cycle_spd(
     start_date: str | None = None,
     end_date: str | None = None,
     validate_weights: bool = True,
+    window_offset: pd.DateOffset | None = None,
 ) -> pd.DataFrame:
     """Compute sats-per-dollar (SPD) statistics over rolling windows.
 
@@ -239,6 +240,7 @@ def compute_cycle_spd(
         start_date: Optional start date (default: BACKTEST_START)
         end_date: Optional end date (default: BACKTEST_END)
         validate_weights: Whether to validate that weights sum to 1.0 (default: True)
+        window_offset: Rolling window length (default: WINDOW_OFFSET)
 
     Returns:
         DataFrame with SPD statistics indexed by window label
@@ -254,7 +256,7 @@ def compute_cycle_spd(
     else:
         full_feat = features_df.loc[start:end]
 
-    window_offset = WINDOW_OFFSET
+    window_offset = window_offset or WINDOW_OFFSET
 
     # Generate start dates daily
     max_start_date = pd.to_datetime(end) - window_offset
@@ -341,6 +343,7 @@ def backtest_dynamic_dca(
     strategy_label: str = "strategy",
     start_date: str | None = None,
     end_date: str | None = None,
+    window_offset: pd.DateOffset | None = None,
 ) -> tuple[pd.DataFrame, float]:
     """Run rolling-window SPD backtest and log aggregated performance metrics.
 
@@ -353,6 +356,7 @@ def backtest_dynamic_dca(
         strategy_label: Label for logging (default: "strategy")
         start_date: Optional start date (default: BACKTEST_START)
         end_date: Optional end date (default: BACKTEST_END)
+        window_offset: Rolling window length (default: WINDOW_OFFSET)
 
     Returns:
         Tuple of (SPD table DataFrame, exponential-decay average percentile)
@@ -363,6 +367,7 @@ def backtest_dynamic_dca(
         features_df=features_df,
         start_date=start_date,
         end_date=end_date,
+        window_offset=window_offset,
     )
     dynamic_spd = spd_table["dynamic_sats_per_dollar"]
     dynamic_pct = spd_table["dynamic_percentile"]
@@ -387,7 +392,11 @@ def backtest_dynamic_dca(
     return spd_table, exp_avg_pct
 
 
-def check_strategy_submission_ready(dataframe: pd.DataFrame, strategy_function) -> None:
+def check_strategy_submission_ready(
+    dataframe: pd.DataFrame,
+    strategy_function,
+    window_offset: pd.DateOffset | None = None,
+) -> None:
     """Validate strategy: no future data, valid weights, ≥50% win rate vs uniform DCA."""
     print("Validating strategy submission readiness...")
     passed = True
@@ -411,8 +420,8 @@ def check_strategy_submission_ready(dataframe: pd.DataFrame, strategy_function) 
             passed = False
             break
 
-    # Weight validation per rolling window (using 1-year windows)
-    window_offset = WINDOW_OFFSET
+    # Weight validation per rolling window
+    window_offset = window_offset or WINDOW_OFFSET
     backtest_end = BACKTEST_END or dataframe.index.max().strftime("%Y-%m-%d")
     for start in pd.date_range(
         pd.to_datetime(BACKTEST_START),
@@ -435,7 +444,11 @@ def check_strategy_submission_ready(dataframe: pd.DataFrame, strategy_function) 
             passed = False
 
     # Performance vs uniform DCA
-    spd_table = compute_cycle_spd(dataframe, strategy_function)
+    spd_table = compute_cycle_spd(
+        dataframe,
+        strategy_function,
+        window_offset=window_offset,
+    )
     underperf = spd_table[
         spd_table["dynamic_percentile"] < spd_table["uniform_percentile"]
     ]

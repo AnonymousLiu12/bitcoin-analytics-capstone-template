@@ -392,6 +392,7 @@ def run_full_analysis(
     compute_weights_fn,
     output_dir: Path | str,
     strategy_label: str = "Dynamic DCA",
+    window_offset: pd.DateOffset | None = None,
 ):
     """Run full backtest analysis pipeline and generate all artifacts.
 
@@ -401,6 +402,7 @@ def run_full_analysis(
         compute_weights_fn: Function or callable that accepts (df_window, current_date)
         output_dir: Directory where charts and metrics.json will be saved
         strategy_label: Label for the strategy in charts
+        window_offset: Rolling window length (default: 1 year)
     """
     output_dir = Path(output_dir)
     os.makedirs(output_dir, exist_ok=True)
@@ -411,10 +413,15 @@ def run_full_analysis(
         compute_weights_fn,
         features_df=features_df,
         strategy_label=strategy_label,
+        window_offset=window_offset,
     )
 
     logging.info("Running strategy validation...")
-    check_strategy_submission_ready(btc_df, compute_weights_fn)
+    check_strategy_submission_ready(
+        btc_df,
+        compute_weights_fn,
+        window_offset=window_offset,
+    )
 
     # Calculate metrics
     win_rate = (
